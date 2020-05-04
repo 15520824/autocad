@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+        
+        #map {
+            height: 100%;
+        }
+        /* Optional: Makes the sample page fill the window. */
+        
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        
+        #file-field {
+            position: fixed;
+            top: 10px;
+            left: 310px;
+            background-color: white;
+            width: 188px;
+        }
+
+    </style>
+    <script src="../../dist/dcel.js"></script>
+    <script src="../../dist/quadtree.js"></script>
+    <script src="../../dist/tree.js"></script>
+    <script src="../../dist/linear.js"></script>
+    <script src="../../dist/dxf-parser.js"></script>
+    <script src="../../dist/geojson.js"></script>
+    <script src="../../dist/LatLngVn2000.js"></script>
+</head>
+
+<body>
+    <div id="map"></div>
+    <input id="file-field" type="file" />
+
+    <script>
+        var map;
+        var numDeltas = 50;
+        var delay = 10;
+        var i=0;
+        var deltaLat;
+        var deltaLng;
+        var position;
+        var features=[];
+        
+        function transition(result){
+            position = [map.currentMarker.getPosition().lat(),map.currentMarker.getPosition().lng()];
+            i=0;
+            deltaLat = (result[0] - position[0])/numDeltas;
+            deltaLng = (result[1] - position[1])/numDeltas;
+            moveMarker();
+        }
+        function moveMarker(){
+            position[0]+= deltaLat;
+            position[1]+=deltaLng;
+            var latlng = new google.maps.LatLng(position[0],position[1]);
+            map.currentMarker.setTitle("Latitude:"+position[0]+" | Longtitude:"+position[1]);
+            map.currentMarker.setPosition(latlng);
+            if(i!=numDeltas){
+                i++;
+                setTimeout(moveMarker, delay);
+            }
+        }
+        function initMap() {
+                var styledMapType = new google.maps.StyledMapType(
+                [
+                    {
+                        "featureType": "administrative.land_parcel",
+                        "elementType": "labels",
+                        "stylers": [
+                        {
+                            "visibility": "off"
+                        }
+                        ]
+                    },
+                    {
+                        "featureType": "poi",
+                        "elementType": "labels.text",
+                        "stylers": [
+                        {
+                            "visibility": "off"
+                        }
+                        ]
+                    },
+                    {
+                        "featureType": "poi.business",
+                        "stylers": [
+                        {
+                            "visibility": "off"
+                        }
+                        ]
+                    },
+                    {
+                        "featureType": "poi.park",
+                        "elementType": "labels.text",
+                        "stylers": [
+                        {
+                            "visibility": "off"
+                        }
+                        ]
+                    },
+                    {
+                        "featureType": "road.local",
+                        "elementType": "labels",
+                        "stylers": [
+                        {
+                            "visibility": "off"
+                        }
+                        ]
+                    }],
+                    {name: 'Styled Map'});
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 16,
+                center: new google.maps.LatLng( 10.79253578186035, 106.6861724853515),
+                mapTypeControlOptions: {
+                    mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain',
+                            'styled_map']
+                }
+            });
+
+            google.maps.event.addListener(map.data,'addfeature',function(e){
+                console.log(e)
+                if (e.feature.getGeometry().getType() === 'Polygon')
+                {
+                    map.currentPolygon = e.feature;
+                }
+            });
+
+            window.addEventListener("keydown",function(e){
+                if(e.keyCode==46)
+                {
+                    if(map.currentPolygon!==undefined){
+                        map.currentPolygon.setMap(null);
+                        map.currentPolygon = undefined;
+                    }
+                    
+                    if(map.currentMarker!==undefined){
+                        map.currentMarker.setMap(null);
+                        map.currentMarker = undefined;
+                    }
+                }
+            })
+
+            map.setOptions({ minZoom: 0, maxZoom: 24 });
+            map.mapTypes.set('styled_map', styledMapType);
+            map.setMapTypeId('styled_map');
+            var drawingManager = new google.maps.drawing.DrawingManager({
+                drawingControl: true,
+                drawingControlOptions: {
+                position: google.maps.ControlPosition.TOP_CENTER,
+                drawingModes: [
+                    google.maps.drawing.OverlayType.POLYLINE,
+                    google.maps.drawing.OverlayType.POLYGON,
+                    google.maps.drawing.OverlayType.MARKER,
+                ]
+                },
+                markerOptions: {
+                icon: 'http://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=$175K|FE6256|000000'
+                },
+            });
+            drawingManager.setMap(map);
+            google.maps.event.addListener(drawingManager, 'markercomplete', function(marker) {
+                marker.setTitle("Latitude:"+marker.getPosition().lat()+" | Longtitude:"+marker.getPosition().lng());
+                marker.addListener('click', function() {
+                    map.currentMarker = marker;
+                });
+            });
+            google.maps.event.addListener(drawingManager, 'polygoncomplete', function(polygon) {
+                polygon.addListener('click', function() {
+                    map.currentPolygon = polygon;
+                });
+            });
+            google.maps.event.addListener(map, "click",  function(event){
+                if(map.currentMarker===undefined)
+                    return;
+                var result = [event.latLng.lat(),event.latLng.lng()];
+                transition(result);
+            })
+            // Create a <script> tag and set the USGS URL as the source.
+            // var script = document.createElement('script');
+            // // This example uses a local copy of the GeoJSON stored at
+            // // http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_week.geojsonp
+            // script.src = 'https://developers.google.com/maps/documentation/javascript/examples/json/earthquake_GeoJSONP.js';
+            // document.getElementsByTagName('head')[0].appendChild(script);
+            
+            function consoleArea(areas) {
+                var result = {
+                    type: "FeatureCollection",
+                    features:[]
+                }
+                var k=0;
+                areas.forEach(function(f) {
+                        if(f._area>(1.1368683772161603e-13)){
+                            var vertices = f.vertexlist;
+                            if(vertices!==undefined)
+                            {
+                                var temp = [];
+                                var sum = 0;
+                                for(var i=0;i<vertices.length;i++)
+                                {
+                                    temp.push([vertices[i].x,vertices[i].y]);
+                                }
+                                temp.push([vertices[0].x,vertices[0].y]);
+                                temp = checkRule(temp);
+                                result.features.push({
+                                    type: "Feature",
+                                    properties:{},
+                                    geometry: {
+                                        type: 'Polygon',
+                                        coordinates: [temp],
+                                    }
+                                })
+                            }
+                        } 
+                });
+                return result;
+            }
+            function checkRule(poly)
+            {
+                var sum = 0
+                for (var i=0; i<poly.length-1; i++) {
+                    var cur = poly[i],
+                        next = poly[i+1]
+                    sum += (next[0] - cur[0]) * (next[1] + cur[1])
+                }
+                if(sum>0)
+                return poly.reverse();
+                return poly;
+            }
+            document.getElementById("file-field").onchange = function() {
+                var reader = new FileReader();
+                reader.readAsText(this.files[0]);
+                reader.onload = function(e) {
+                    console.time("dcel cost");
+                    var fileText = e.target.result;
+
+                    var parser = new DxfParser();
+                    var dxf = null;
+                    try {
+                        dxf = parser.parseSync(fileText);
+                    } catch (err) {
+                        return console.error(err.stack);
+                    }
+                    console.log('Success!');
+                    // outputElement.innerHTML = JSON.stringify(dxf, null, 4);
+                    console.log(dxf, JSON.stringify(dxf, null, 4));
+                    
+                    var geojson = GeoJSON.parse(dxf)
+                    // var center =  new google.maps.LatLng(GeoJSON.header.$LATITUDE, GeoJSON.header.$LONGITUDE);
+                    // window.dcel.extractLines();
+                    // var faces = dcel.internalFaces();
+                    // geojson = consoleArea(faces);
+                    // console.log(geojson)
+                    map.data.addGeoJson(geojson, {});
+                    // map.setCenter(center);
+                    map.data.setStyle({
+                        strokeColor: "#000000",
+                        strokeOpacity: 0.8,
+                        strokeWeight: 1,
+                    });
+                    console.timeEnd("dcel cost");
+                }
+              }
+            };
+    </script>
+
+    <script async defer src="https://maps.googleapis.com/maps/api/js?libraries=drawing&key=AIzaSyBBgUUCM0d67G5IP69q_onHy0A7kTnq8qw&callback=initMap">
+    </script>
+</body>
+
+</html>

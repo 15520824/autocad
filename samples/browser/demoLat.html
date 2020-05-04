@@ -1,0 +1,14 @@
+<html>
+<head>
+  <script src="../../dist/proj4.js"></script>
+
+  <script>
+    var utm = "+proj=utm +zone=48";
+    var wgs84 = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs";
+    console.log(proj4(utm,wgs84,[602459.5520070771, 1190262.156457591]));
+  </script>
+</head>
+<body>
+
+</body>
+</html>
